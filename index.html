@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dental Case Manager</title>
+    <meta name="theme-color" content="#0284c7">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dental Cases">
+    
+    <!-- External Libraries for PDF & ZIP Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #0284c7;
+            --primary-dark: #0369a1;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --border: #cbd5e1;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background: var(--bg); color: var(--text); padding-bottom: 40px; -webkit-tap-highlight-color: transparent; }
+        header { background: var(--primary); color: white; padding: 16px; text-align: center; font-size: 1.25rem; font-weight: bold; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .container { max-width: 800px; margin: 0 auto; padding: 16px; }
+        .card { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px; }
+        h2 { font-size: 1.2rem; margin-bottom: 14px; color: var(--primary-dark); }
+        .btn { display: block; width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; text-align: center; cursor: pointer; margin-bottom: 12px; text-decoration: none; }
+        .btn:active { background: var(--primary-dark); transform: scale(0.99); }
+        .btn-success { background: var(--success); }
+        .btn-success:active { background: #15803d; }
+        .btn-danger { background: var(--danger); }
+        .btn-danger:active { background: #b91c1c; }
+        .btn-secondary { background: #64748b; }
+        .btn-secondary:active { background: #475569; }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.95rem; }
+        input[type="text"], input[type="tel"], input[type="date"], select { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; background: #fff; }
+        input:focus, select:focus { outline: 2px solid var(--primary); }
+        .file-input-wrapper { border: 2px dashed var(--border); padding: 16px; text-align: center; border-radius: 8px; background: #f1f5f9; cursor: pointer; position: relative; }
+        .file-input-wrapper input[type="file"] { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+        .preview-container { display: flex; gap: 10px; margin-top: 10px; overflow-x: auto; }
+        .preview-thumb { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+        .search-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        @media(max-width: 500px) { .search-grid { grid-template-columns: 1fr; } }
+        .record-card { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding: 12px 0; }
+        .record-info h3 { font-size: 1.05rem; color: var(--text); }
+        .record-info p { font-size: 0.85rem; color: #64748b; margin-top: 2px; }
+        .record-thumbs { display: flex; gap: 6px; margin-top: 6px; }
+        .record-thumbs img { width: 45px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #ccc; }
+        .screen { display: none; }
+        .screen.active { display: block; }
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 999; color: white; font-size: 1.2rem; font-weight: bold; flex-direction: column; gap: 15px;}
+        .spinner { width: 45px; height: 45px; border: 5px solid #fff; border-bottom-color: transparent; border-radius: 50%; animation: rotation 1s linear infinite; }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; padding: 20px; }
+        .modal-content { background: white; padding: 20px; border-radius: 12px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; }
+        .full-img { width: 100%; max-height: 70vh; object-fit: contain; margin-bottom: 12px; border-radius: 8px; }
+        .privacy-note { font-size: 0.8rem; color: #64748b; line-height: 1.4; margin-top: 15px; background: #f1f5f9; padding: 12px; border-radius: 6px; }
+    </style>
+</head>
+<body>
+
+    <header id="app-header">Dental Case Manager</header>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div id="loading-text">Processing...</div>
+    </div>
+
+    <!-- Modal for Full Image View -->
+    <div id="image-modal" class="modal">
+        <div class="modal-content" style="text-align: center;">
+            <h3 id="modal-img-title" style="margin-bottom: 10px;">Image View</h3>
+            <img id="modal-image-element" class="full-img" src="" alt="Full view">
+            <button class="btn btn-secondary" onclick="closeImageModal()">Close</button>
+        </div>
+    </div>
+
+    <!-- Modal for Backup Import Options -->
+    <div id="import-modal" class="modal">
+        <div class="modal-content">
+            <h2>Restore Backup Options</h2>
+            <p style="margin-bottom: 15px; font-size: 0.95rem;">Duplicates were found matching existing records. Choose how to handle them:</p>
+            <button class="btn btn-success" onclick="processImportWithStrategy('merge')">Merge / Keep Existing & Add New</button>
+            <button class="btn btn-secondary" onclick="processImportWithStrategy('skip')">Skip Duplicates</button>
+            <button class="btn btn-danger" onclick="closeImportModal()" style="margin-top: 10px;">Cancel Import</button>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <!-- SCREEN A: HOME -->
+        <div id="screen-home" class="screen active">
+            <div class="card" style="text-align: center;">
+                <h2 style="font-size: 1.4rem; margin-bottom: 8px;">Offline Dental Records</h2>
+                <p style="color: #64748b; font-size: 0.95rem; margin-bottom: 20px;">Securely manage patient visit cases locally on your device.</p>
+                <button class="btn btn-success" onclick="navigate('screen-add')" style="font-size: 1.2rem; padding: 18px;">+ Add New Case</button>
+                <button class="btn" onclick="navigate('screen-search')">🔍 Search Records</button>
+                <button class="btn btn-secondary" onclick="navigate('screen-export')">📦 Export by Date Range (ZIP)</button>
+                <button class="btn btn-secondary" onclick="triggerBackup()">💾 Backup All Data (ZIP)</button>
+                
+                <div class="file-input-wrapper" style="margin-top: 12px; border-color: var(--primary);">
+                    <span style="color: var(--primary); font-weight: 600;">📥 Restore Backup (ZIP File)</span>
+                    <input type="file" id="restore-file-input" accept=".zip" onchange="handleRestoreFile(event)">
+                </div>
+            </div>
+
+            <div class="privacy-note">
+                <strong>🔒 Privacy Notice:</strong> All records and photographs are stored locally in your browser's IndexedDB. Perform regular backups using the "Backup All Data" button.
+            </div>
+        </div>
+
+        <!-- SCREEN B: ADD / EDIT CASE -->
+        <div id="screen-add" class="screen">
+            <div class="card">
+                <h2 id="form-title">Add New Patient Case</h2>
+                <form id="case-form" onsubmit="saveCase(event)">
+                    <input type="hidden" id="record-id">
+                    <div class="form-group">
+                        <label for="patient-name">Patient Full Name *</label>
+                        <input type="text" id="patient-name" required placeholder="e.g. John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label for="patient-mobile">Mobile Number (Optional)</label>
+                        <input type="tel" id="patient-mobile" placeholder="e.g. +15551234567">
+                    </div>
+                    <div class="form-group">
+                        <label for="visit-date">Visit Date *</label>
+                        <input type="date" id="visit-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Treatment Plan Photo *</label>
+                        <div class="file-input-wrapper">
+                            <span>Tap to take photo or choose image</span>
+                            <input type="file" id="treatment-photo-input" accept="image/*" onchange="previewImage(event, 'treatment')">
+                        </div>
+                        <div id="treatment-preview-box" class="preview-container"></div>
+                        <input type="hidden" id="treatment-photo-data">
+                    </div>
+                    <div class="form-group">
+                        <label>X-Ray Photo *</label>
+                        <div class="file-input-wrapper">
+                            <span>Tap to take photo or choose image</span>
+                            <input type="file" id="xray-photo-input" accept="image/*" onchange="previewImage(event, 'xray')">
+                        </div>
+                        <div id="xray-preview-box" class="preview-container"></div>
+                        <input type="hidden" id="xray-photo-data">
+                    </div>
+                    <button type="submit" class="btn btn-success">Save Visit Record</button>
+                    <button type="button" class="btn btn-secondary" onclick="navigate('screen-home')">Cancel</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- SCREEN C: SEARCH RECORDS -->
+        <div id="screen-search" class="screen">
+            <div class="card">
+                <h2>Search & Filter Records</h2>
+                <div class="form-group">
+                    <label for="search-query">Search by Name or Mobile</label>
+                    <input type="text" id="search-query" placeholder="Type patient name or mobile..." oninput="runSearch()">
+                </div>
+                <div class="search-grid">
+                    <div class="form-group">
+                        <label for="filter-start">Start Date</label>
+                        <input type="date" id="filter-start" onchange="runSearch()">
+                    </div>
+                    <div class="form-group">
+                        <label for="filter-end">End Date</label>
+                        <input type="date" id="filter-end" onchange="runSearch()">
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="clearSearchFilters()" style="padding: 10px; font-size: 0.9rem;">Clear Filters</button>
+            </div>
+
+            <div class="card">
+                <h2>Results (<span id="result-count">0</span>)</h2>
+                <div id="results-list">
+                    <p style="color: #64748b; text-align: center; padding: 20px;">No records found.</p>
+                </div>
+                <button class="btn btn-secondary" onclick="navigate('screen-home')" style="margin-top: 20px;">Back to Home</button>
+            </div>
+        </div>
+
+        <!-- SCREEN D: CASE DETAILS -->
+        <div id="screen-details" class="screen">
+            <div class="card">
+                <h2>Patient Visit Details</h2>
+                <div id="details-content" style="margin-bottom: 15px; line-height: 1.6;"></div>
+                <button class="btn btn-success" onclick="generatePDFForCurrentRecord()">📄 Download 2-Page PDF</button>
+                <button class="btn" onclick="editCurrentRecord()">✏️ Edit Record</button>
+                <button class="btn btn-danger" onclick="confirmDeleteCurrentRecord()">🗑️ Delete Record</button>
+                <button class="btn btn-secondary" onclick="navigate('screen-search')">Back to Search</button>
+            </div>
+        </div>
+
+        <!-- SCREEN E: EXPORT BY DATE RANGE -->
+        <div id="screen-export" class="screen">
+            <div class="card">
+                <h2>Export Records by Date Range</h2>
+                <div class="form-group">
+                    <label for="export-range-type">Select Range Option</label>
+                    <select id="export-range-type" onchange="toggleExportRangeInputs()">
+                        <option value="week">Specific Week</option>
+                        <option value="month">Specific Month</option>
+                        <option value="custom">Custom Date Range</option>
+                    </select>
+                </div>
+                <div id="export-week-box" class="form-group">
+                    <label for="export-week-input">Select Any Day in Target Week</label>
+                    <input type="date" id="export-week-input">
+                </div>
+                <div id="export-month-box" class="form-group" style="display:none;">
+                    <label for="export-month-input">Select Target Month</label>
+                    <input type="month" id="export-month-input">
+                </div>
+                <div id="export-custom-box" style="display:none;">
+                    <div class="form-group">
+                        <label for="export-custom-start">Start Date</label>
+                        <input type="date" id="export-custom-start">
+                    </div>
+                    <div class="form-group">
+                        <label for="export-custom-end">End Date</label>
+                        <input type="date" id="export-custom-end">
+                    </div>
+                </div>
+                <button class="btn btn-success" onclick="executeDateRangeExport()">Generate ZIP Package</button>
+                <button class="btn btn-secondary" onclick="navigate('screen-home')">Back to Home</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const DB_NAME = 'DentalCaseDB';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'records';
+        let db = null;
+        let currentActiveRecordId = null;
+        let pendingImportData = null;
+
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onerror = (e) => reject("IndexedDB error: " + e.target.error);
+                request.onsuccess = (e) => { db = e.target.result; resolve(db); };
+                request.onupgradeneeded = (e) => {
+                    const database = e.target.result;
+                    if (!database.objectStoreNames.contains(STORE_NAME)) {
+                        database.createObjectStore(STORE_NAME, { keyPath: 'id' });
+                    }
+                };
+            });
+        }
+
+        function navigate(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            window.scrollTo(0, 0);
+
+            if (screenId === 'screen-add') {
+                if (!document.getElementById('record-id').value) {
+                    document.getElementById('case-form').reset();
+                    document.getElementById('record-id').value = '';
+                    document.getElementById('visit-date').valueAsDate = new Date();
+                    document.getElementById('treatment-preview-box').innerHTML = '';
+                    document.getElementById('xray-preview-box').innerHTML = '';
+                    document.getElementById('treatment-photo-data').value = '';
+                    document.getElementById('xray-photo-data').value = '';
+                    document.getElementById('form-title').innerText = 'Add New Patient Case';
+                }
+            } else if (screenId === 'screen-search') {
+                runSearch();
+            } else if (screenId === 'screen-export') {
+                document.getElementById('export-week-input').valueAsDate = new Date();
+                const now = new Date();
+                document.getElementById('export-month-input').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            }
+        }
+
+        function showLoading(text = 'Processing...') {
+            document.getElementById('loading-text').innerText = text;
+            document.getElementById('loading-overlay').style.display = 'flex';
+        }
+        function hideLoading() {
+            document.getElementById('loading-overlay').style.display = 'none';
+        }
+
+        function previewImage(event, type) {
+            const file = event.target.files[0];
+            if (!file) return;
+            showLoading('Optimizing image...');
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width, height = img.height;
+                    const maxDim = 1200;
+                    if (width > height && width > maxDim) {
+                        height = Math.round((height * maxDim) / width); width = maxDim;
+                    } else if (height > maxDim) {
+                        width = Math.round((width * maxDim) / height); height = maxDim;
+                    }
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+                    document.getElementById(`${type}-photo-data`).value = compressedDataUrl;
+                    document.getElementById(`${type}-preview-box`).innerHTML = `<img src="${compressedDataUrl}" class="preview-thumb" onclick="openImageModal('${compressedDataUrl}', '${type.toUpperCase()} Photo')">`;
+                    hideLoading();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function openImageModal(dataUrl, title) {
+            document.getElementById('modal-img-title').innerText = title;
+            document.getElementById('modal-image-element').src = dataUrl;
+            document.getElementById('image-modal').style.display = 'flex';
+        }
+        function closeImageModal() { document.getElementById('image-modal').style.display = 'none'; }
+
+        async function saveCase(event) {
+            event.preventDefault();
+            const idField = document.getElementById('record-id').value;
+            const name = document.getElementById('patient-name').value.trim();
+            const mobile = document.getElementById('patient-mobile').value.trim();
+            const visitDate = document.getElementById('visit-date').value;
+            const treatmentPhoto = document.getElementById('treatment-photo-data').value;
+            const xrayPhoto = document.getElementById('xray-photo-data').value;
+
+            if (!name || !visitDate) { alert('Please fill in Patient Name and Visit Date.'); return; }
+            if (!idField && (!treatmentPhoto || !xrayPhoto)) { alert('Both Treatment Plan and X-Ray photos are required.'); return; }
+
+            showLoading('Saving record...');
+            let recordId = idField ? idField : 'rec_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+
+            if (idField) {
+                store.get(idField).onsuccess = (e) => {
+                    const existing = e.target.result || {};
+                    const record = {
+                        id: idField, name, mobile, visitDate,
+                        treatmentPhoto: treatmentPhoto || existing.treatmentPhoto,
+                        xrayPhoto: xrayPhoto || existing.xrayPhoto,
+                        createdAt: existing.createdAt || Date.now()
+                    };
+                    store.put(record).onsuccess = () => { hideLoading(); alert('Updated successfully!'); openRecordDetails(idField); };
+                };
+            } else {
+                const record = { id: recordId, name, mobile, visitDate, treatmentPhoto, xrayPhoto, createdAt: Date.now() };
+                store.put(record).onsuccess = () => { hideLoading(); alert('Saved successfully!'); navigate('screen-home'); };
+            }
+        }
+
+        function getAllRecords() {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                const req = store.getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function runSearch() {
+            if (!db) return;
+            const query = document.getElementById('search-query').value.toLowerCase().trim();
+            const startDate = document.getElementById('filter-start').value;
+            const endDate = document.getElementById('filter-end').value;
+
+            let records = await getAllRecords();
+            records = records.filter(r => {
+                const matchQuery = !query || r.name.toLowerCase().includes(query) || (r.mobile && r.mobile.includes(query));
+                const matchStart = !startDate || r.visitDate >= startDate;
+                const matchEnd = !endDate || r.visitDate <= endDate;
+                return matchQuery && matchStart && matchEnd;
+            });
+
+            records.sort((a, b) => b.visitDate.localeCompare(a.visitDate) || (b.createdAt || 0) - (a.createdAt || 0));
+
+            const listEl = document.getElementById('results-list');
+            document.getElementById('result-count').innerText = records.length;
+
+            if (records.length === 0) {
+                listEl.innerHTML = `<p style="color: #64748b; text-align: center; padding: 20px;">No matching records found.</p>`;
+                return;
+            }
+
+            let html = '';
+            records.forEach(r => {
+                html += `
+                    <div class="record-card">
+                        <div class="record-info">
+                            <h3>${escapeHtml(r.name)}</h3>
+                            <p>📱 ${escapeHtml(r.mobile || 'No mobile')} | 📅 ${r.visitDate}</p>
+                            <div class="record-thumbs">
+                                ${r.treatmentPhoto ? `<img src="${r.treatmentPhoto}" onclick="openImageModal('${r.treatmentPhoto}', 'Treatment Plan')">` : ''}
+                                ${r.xrayPhoto ? `<img src="${r.xrayPhoto}" onclick="openImageModal('${r.xrayPhoto}', 'X-Ray')">` : ''}
+                            </div>
+                        </div>
+                        <div><button class="btn" style="padding: 8px 14px; margin-bottom: 0;" onclick="openRecordDetails('${r.id}')">View</button></div>
+                    </div>
+                `;
+            });
+            listEl.innerHTML = html;
+        }
+
+        function clearSearchFilters() {
+            document.getElementById('search-query').value = '';
+            document.getElementById('filter-start').value = '';
+            document.getElementById('filter-end').value = '';
+            runSearch();
+        }
+
+        async function openRecordDetails(id) {
+            showLoading('Loading record...');
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            store.get(id).onsuccess = (e) => {
+                hideLoading();
+                const r = e.target.result;
+                if (!r) return;
+                currentActiveRecordId = r.id;
+
+                document.getElementById('details-content').innerHTML = `
+                    <p><strong>Patient Name:</strong> ${escapeHtml(r.name)}</p>
+                    <p><strong>Mobile Number:</strong> ${escapeHtml(r.mobile || 'N/A')}</p>
+                    <p><strong>Visit Date:</strong> ${r.visitDate}</p>
+                    <hr style="margin: 10px 0; border:0; border-top:1px solid #e2e8f0;">
+                    <p><strong>Treatment Plan Photo:</strong></p>
+                    ${r.treatmentPhoto ? `<img src="${r.treatmentPhoto}" class="full-img" style="max-height: 220px; cursor: pointer;" onclick="openImageModal('${r.treatmentPhoto}', 'Treatment Plan')">` : '<p>None</p>'}
+                    <p><strong>X-Ray Photo:</strong></p>
+                    ${r.xrayPhoto ? `<img src="${r.xrayPhoto}" class="full-img" style="max-height: 220px; cursor: pointer;" onclick="openImageModal('${r.xrayPhoto}', 'X-Ray')">` : '<p>None</p>'}
+                `;
+                navigate('screen-details');
+            };
+        }
+
+        function editCurrentRecord() {
+            showLoading('Preparing edit...');
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            store.get(currentActiveRecordId).onsuccess = (e) => {
+                hideLoading();
+                const r = e.target.result;
+                if (!r) return;
+                document.getElementById('record-id').value = r.id;
+                document.getElementById('patient-name').value = r.name;
+                document.getElementById('patient-mobile').value = r.mobile || '';
+                document.getElementById('visit-date').value = r.visitDate;
+                document.getElementById('treatment-photo-data').value = r.treatmentPhoto || '';
+                document.getElementById('xray-photo-data').value = r.xrayPhoto || '';
+                document.getElementById('treatment-preview-box').innerHTML = r.treatmentPhoto ? `<img src="${r.treatmentPhoto}" class="preview-thumb">` : '';
+                document.getElementById('xray-preview-box').innerHTML = r.xrayPhoto ? `<img src="${r.xrayPhoto}" class="preview-thumb">` : '';
+                document.getElementById('form-title').innerText = 'Edit Patient Case';
+                navigate('screen-add');
+            };
+        }
+
+        function confirmDeleteCurrentRecord() {
+            if (confirm('Are you sure you want to delete this record?')) {
+                showLoading('Deleting...');
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                store.delete(currentActiveRecordId).onsuccess = () => {
+                    hideLoading(); alert('Deleted.'); navigate('screen-search');
+                };
+            }
+        }
+
+        async function generatePDFForCurrentRecord() {
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            store.get(currentActiveRecordId).onsuccess = async (e) => {
+                if (e.target.result) await createAndDownloadPDF(e.target.result);
+            };
+        }
+
+        async function createAndDownloadPDF(r) {
+            showLoading('Generating PDF...');
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                const pageWidth = 210, margin = 15, usableWidth = pageWidth - (margin * 2);
+
+                // Page 1
+                pdf.setFont("helvetica", "bold"); pdf.setFontSize(16);
+                pdf.text("Dental Visit Case Report - Page 1", margin, 20);
+                pdf.setFontSize(11); pdf.setFont("helvetica", "normal");
+                pdf.text(`Patient Name: ${r.name}`, margin, 30);
+                pdf.text(`Mobile Number: ${r.mobile || 'N/A'}`, margin, 37);
+                pdf.text(`Visit Date: ${r.visitDate}`, margin, 44);
+                pdf.setFont("helvetica", "bold"); pdf.text("Treatment Plan Photo:", margin, 55);
+                if (r.treatmentPhoto) await addProportionalImageToPDF(pdf, r.treatmentPhoto, margin, 60, usableWidth, 210);
+
+                // Page 2
+                pdf.addPage();
+                pdf.setFont("helvetica", "bold"); pdf.setFontSize(16);
+                pdf.text("Dental Visit Case Report - Page 2", margin, 20);
+                pdf.setFontSize(11); pdf.setFont("helvetica", "normal");
+                pdf.text(`Patient Name: ${r.name}`, margin, 30);
+                pdf.text(`Mobile Number: ${r.mobile || 'N/A'}`, margin, 37);
+                pdf.text(`Visit Date: ${r.visitDate}`, margin, 44);
+                pdf.setFont("helvetica", "bold"); pdf.text("X-Ray Photo:", margin, 55);
+                if (r.xrayPhoto) await addProportionalImageToPDF(pdf, r.xrayPhoto, margin, 60, usableWidth, 210);
+
+                pdf.save(`${r.visitDate}_${sanitizeFilename(r.name)}.pdf`);
+                hideLoading();
+            } catch (err) { hideLoading(); alert('PDF Error: ' + err.message); }
+        }
+
+        function addProportionalImageToPDF(pdf, dataUrl, x, y, maxWidth, maxHeight) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = function() {
+                    let ratio = Math.min(maxWidth / img.width, maxHeight / img.height);
+                    let finalWidth = img.width * ratio;
+                    let finalHeight = img.height * ratio;
+                    pdf.addImage(img, 'JPEG', x + (maxWidth - finalWidth) / 2, y, finalWidth, finalHeight);
+                    resolve();
+                };
+                img.src = dataUrl;
+            });
+        }
+
+        function sanitizeFilename(name) { return name.trim().replace(/[\s\/\\?%*:|"<>]/g, '_'); }
+
+        function toggleExportRangeInputs() {
+            const type = document.getElementById('export-range-type').value;
+            document.getElementById('export-week-box').style.display = type === 'week' ? 'block' : 'none';
+            document.getElementById('export-month-box').style.display = type === 'month' ? 'block' : 'none';
+            document.getElementById('export-custom-box').style.display = type === 'custom' ? 'block' : 'none';
+        }
+
+        async function executeDateRangeExport() {
+            const type = document.getElementById('export-range-type').value;
+            let startDate = '', endDate = '';
+            if (type === 'week') {
+                const val = document.getElementById('export-week-input').value;
+                if (!val) { alert('Select week reference date.'); return; }
+                const d = new Date(val), day = d.getDay();
+                const monday = new Date(d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)));
+                const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+                startDate = monday.toISOString().split('T')[0];
+                endDate = sunday.toISOString().split('T')[0];
+            } else if (type === 'month') {
+                const val = document.getElementById('export-month-input').value;
+                if (!val) { alert('Select month.'); return; }
+                const [year, month] = val.split('-');
+                startDate = `${year}-${month}-01`;
+                endDate = `${year}-${month}-${new Date(year, month, 0).getDate()}`;
+            } else {
+                startDate = document.getElementById('export-custom-start').value;
+                endDate = document.getElementById('export-custom-end').value;
+                if (!startDate || !endDate) { alert('Specify start and end dates.'); return; }
+            }
+
+            showLoading('Building export ZIP...');
+            try {
+                const records = await getAllRecords();
+                const filtered = records.filter(r => r.visitDate >= startDate && r.visitDate <= endDate);
+                if (filtered.length === 0) { hideLoading(); alert('No records found in range.'); return; }
+
+                const zip = new JSZip();
+                let csvContent = "\uFEFFPatient Name,Mobile Number,Visit Date,PDF Filename\n";
+                const { jsPDF } = window.jspdf;
+
+                for (let r of filtered) {
+                    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                    const pageWidth = 210, margin = 15, usableWidth = pageWidth - (margin * 2);
+                    
+                    pdf.setFont("helvetica", "bold"); pdf.setFontSize(16);
+                    pdf.text("Dental Visit Case Report - Page 1", margin, 20);
+                    pdf.setFontSize(11); pdf.setFont("helvetica", "normal");
+                    pdf.text(`Patient Name: ${r.name}`, margin, 30);
+                    pdf.text(`Mobile Number: ${r.mobile || 'N/A'}`, margin, 37);
+                    pdf.text(`Visit Date: ${r.visitDate}`, margin, 44);
+                    pdf.setFont("helvetica", "bold"); pdf.text("Treatment Plan Photo:", margin, 55);
+                    if (r.treatmentPhoto) await addProportionalImageToPDF(pdf, r.treatmentPhoto, margin, 60, usableWidth, 210);
+
+                    pdf.addPage();
+                    pdf.setFont("helvetica", "bold"); pdf.setFontSize(16);
+                    pdf.text("Dental Visit Case Report - Page 2", margin, 20);
+                    pdf.setFontSize(11); pdf.setFont("helvetica", "normal");
+                    pdf.text(`Patient Name: ${r.name}`, margin, 30);
+                    pdf.text(`Mobile Number: ${r.mobile || 'N/A'}`, margin, 37);
+                    pdf.text(`Visit Date: ${r.visitDate}`, margin, 44);
+                    pdf.setFont("helvetica", "bold"); pdf.text("X-Ray Photo:", margin, 55);
+                    if (r.xrayPhoto) await addProportionalImageToPDF(pdf, r.xrayPhoto, margin, 60, usableWidth, 210);
+
+                    const pdfFilename = `${r.visitDate}_${sanitizeFilename(r.name)}.pdf`;
+                    zip.file(pdfFilename, pdf.output('blob'));
+                    csvContent += `"${r.name.replace(/"/g, '""')}","${(r.mobile || '').replace(/"/g, '""')}",${r.visitDate},${pdfFilename}\n`;
+                }
+
+                zip.file("records_index.csv", csvContent);
+                const content = await zip.generateAsync({ type: "blob" });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = `Dental_Export_${startDate}_to_${endDate}.zip`;
+                document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                hideLoading();
+                alert('ZIP export completed!');
+            } catch (err) { hideLoading(); alert('Export failed: ' + err.message); }
+        }
+
+        async function triggerBackup() {
+            showLoading('Creating backup ZIP...');
+            try {
+                const records = await getAllRecords();
+                const zip = new JSZip();
+                zip.file("manifest.json", JSON.stringify({ version: 1, exportDate: new Date().toISOString(), totalRecords: records.length }, null, 2));
+                zip.file("data.json", JSON.stringify(records, null, 2));
+                const content = await zip.generateAsync({ type: "blob" });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = `Dental_Full_Backup_${new Date().toISOString().split('T')[0]}.zip`;
+                document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                hideLoading();
+                alert('Backup completed!');
+            } catch (err) { hideLoading(); alert('Backup failed: ' + err.message); }
+        }
+
+        async function handleRestoreFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            showLoading('Reading backup...');
+            try {
+                const zip = new JSZip();
+                const zipContent = await zip.loadAsync(file);
+                if (!zipContent.files['data.json'] || !zipContent.files['manifest.json']) throw new Error('Invalid backup file.');
+                const importedRecords = JSON.parse(await zipContent.files['data.json'].async('string'));
+                const existingRecords = await getAllRecords();
+                const existingIds = new Set(existingRecords.map(r => r.id));
+                const duplicates = importedRecords.filter(r => existingIds.has(r.id));
+                pendingImportData = importedRecords;
+                hideLoading();
+                document.getElementById('restore-file-input').value = '';
+                if (duplicates.length > 0) {
+                    document.getElementById('import-modal').style.display = 'flex';
+                } else {
+                    await executeImport(importedRecords, 'merge');
+                    alert('Restore completed successfully!');
+                    navigate('screen-home');
+                }
+            } catch (err) { hideLoading(); document.getElementById('restore-file-input').value = ''; alert('Restore failed: ' + err.message); }
+        }
+
+        function closeImportModal() { document.getElementById('import-modal').style.display = 'none'; pendingImportData = null; }
+
+        async function processImportWithStrategy(strategy) {
+            document.getElementById('import-modal').style.display = 'none';
+            if (!pendingImportData) return;
+            showLoading('Restoring...');
+            await executeImport(pendingImportData, strategy);
+            pendingImportData = null;
+            hideLoading();
+            alert('Restore completed successfully!');
+            navigate('screen-home');
+        }
+
+        function executeImport(records, strategy) {
+            return new Promise(async (resolve, reject) => {
+                const existingRecords = await getAllRecords();
+                const existingMap = new Map(existingRecords.map(r => [r.id, r]));
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                for (let r of records) {
+                    if (!existingMap.has(r.id) || strategy === 'merge') {
+                        store.put(r);
+                    }
+                }
+                tx.oncomplete = () => resolve();
+                tx.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            try { await initDB(); } catch (err) { alert('Database init failed.'); }
+        });
+    </script>
+</body>
+</html>
